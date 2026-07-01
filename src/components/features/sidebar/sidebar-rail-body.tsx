@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   ChevronLeft,
   ChevronRight,
+  Map,
   Plus,
   Server,
   Settings,
@@ -209,6 +210,14 @@ export function SidebarRailBody({
           disabled={linkDisabled}
           collapsed={collapsed}
           icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
+        />
+        <SidebarNavLink
+          to="/roadmap"
+          label={t(I18nKey.SIDEBAR$ROADMAP)}
+          testId="sidebar-roadmap-link"
+          disabled={linkDisabled}
+          collapsed={collapsed}
+          icon={<Map width={ICON_SIZE} height={ICON_SIZE} />}
         />
       </nav>
 
