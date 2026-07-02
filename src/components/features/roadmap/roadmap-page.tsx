@@ -11,6 +11,8 @@ import { type Phase, type RenderTile } from "./build-phases";
 import { buildRunFolderUrl, type RunMediaItem } from "./media";
 import { useRoadmapPhases } from "./use-roadmap-phases";
 import { useRunMedia } from "./use-run-media";
+import { useDispatchAutomation } from "#/hooks/query/use-automations";
+import { useNavigation } from "#/context/navigation-context";
 import { ConfigureAutomationModal } from "./config/configure-automation-modal";
 import "./roadmap.css";
 
@@ -288,6 +290,8 @@ export default function RoadmapPage() {
   const [pageProgress, setPageProgress] = useState(0);
   const [openPhases, setOpenPhases] = useState<Set<string>>(() => new Set());
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const dispatchMutation = useDispatchAutomation();
+  const { navigate } = useNavigation();
 
   const togglePhase = (phaseLabel: string) => {
     setOpenPhases((current) => {
@@ -304,7 +308,27 @@ export default function RoadmapPage() {
   };
 
   const handleDetailAction = (action: string, phase: Phase) => {
-    console.log(`Roadmap action: ${action}`, phase.phaseLabel);
+    if (action === "run-now") {
+      if (phase.automation) {
+        dispatchMutation.mutate(phase.automation.id);
+      }
+      return;
+    }
+
+    if (action === "configure") {
+      setIsConfigOpen(true);
+      return;
+    }
+
+    if (action === "open-conversation") {
+      const conversationId = phase.runs?.find(
+        (run) => run.conversation_id,
+      )?.conversation_id;
+
+      if (conversationId) {
+        navigate?.(`/conversations/${conversationId}`);
+      }
+    }
   };
 
   useEffect(() => {
@@ -324,12 +348,22 @@ export default function RoadmapPage() {
 
     observedItems.forEach((item) => observer.observe(item));
 
+    // The app scrolls inside `#root-outlet` (root-layout), not the window — the
+    // outer layout is `overflow-hidden`, so window scroll never fires and
+    // `document.documentElement.scrollTop` stays 0. Bind to that container so
+    // the progress bar, timeline fill, and % actually track scrolling.
+    const scroller = document.getElementById("root-outlet");
+    const scrollTarget: EventTarget = scroller ?? window;
+
     const updateScrollProgress = () => {
       rafRef.current = null;
 
-      const root = document.documentElement;
-      const maxScroll = Math.max(1, root.scrollHeight - root.clientHeight);
-      const nextPageProgress = clamp(root.scrollTop / maxScroll);
+      const metricsEl = scroller ?? document.documentElement;
+      const maxScroll = Math.max(
+        1,
+        metricsEl.scrollHeight - metricsEl.clientHeight,
+      );
+      const nextPageProgress = clamp(metricsEl.scrollTop / maxScroll);
       const timeline = timelineRef.current;
 
       progressBarRef.current?.style.setProperty(
@@ -342,9 +376,17 @@ export default function RoadmapPage() {
         return;
       }
 
+      // `getBoundingClientRect()` is viewport-relative; measure the timeline
+      // against the scroll container's own viewport box + visible height.
+      const viewportTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      const viewportHeight = scroller
+        ? scroller.clientHeight
+        : window.innerHeight;
       const rect = timeline.getBoundingClientRect();
-      const start = window.innerHeight * 0.5;
-      const nextRoadmapProgress = clamp((start - rect.top) / rect.height);
+      const start = viewportHeight * 0.5;
+      const nextRoadmapProgress = clamp(
+        (start - (rect.top - viewportTop)) / rect.height,
+      );
       const percent = Math.round(nextRoadmapProgress * 100);
 
       fillRef.current?.style.setProperty(
@@ -360,13 +402,13 @@ export default function RoadmapPage() {
       }
     };
 
-    window.addEventListener("scroll", requestUpdate, { passive: true });
+    scrollTarget.addEventListener("scroll", requestUpdate, { passive: true });
     window.addEventListener("resize", requestUpdate);
     requestUpdate();
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("scroll", requestUpdate);
+      scrollTarget.removeEventListener("scroll", requestUpdate);
       window.removeEventListener("resize", requestUpdate);
 
       if (rafRef.current !== null) {

@@ -6,7 +6,13 @@ import { type RenderTile } from "./build-phases";
  * Layout is `/roadmap/<automationId>/<runId>/<asset>` — see the fleet media
  * storage + agent-systems contract. Reachable over the Tailscale tailnet.
  */
-const FILER_BASE = "http://seaweedfs-filer.tailb628c5.ts.net:8888";
+// NOTE: this is an http:// tailnet endpoint. When the cockpit is served over
+// https (e.g. agent-canvas.tailb628c5.ts.net) the browser blocks http media as
+// mixed content — override with `VITE_ROADMAP_FILER_BASE` pointed at an https
+// filer proxy (e.g. `tailscale serve`) for those deployments.
+const FILER_BASE =
+  (import.meta.env as Record<string, string | undefined>)
+    .VITE_ROADMAP_FILER_BASE ?? "http://seaweedfs-filer.tailb628c5.ts.net:8888";
 
 /**
  * One displayable media asset from a run folder. Mirrors the shape of a
