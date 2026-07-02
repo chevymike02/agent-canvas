@@ -4,8 +4,18 @@ import AutomationService from "#/api/automation-service/automation-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { AUTOMATION_RUNS_QUERY_KEY } from "#/hooks/query/use-automation-detail";
 import { useAutomations } from "#/hooks/query/use-automations";
-import type { AutomationRun } from "#/types/automation";
+import {
+  AutomationRunStatus,
+  type AutomationRun,
+  type AutomationRunsResponse,
+} from "#/types/automation";
 import { buildPhases, type Phase } from "./build-phases";
+
+// Must match `useAutomationRuns`'s defaults exactly (src/hooks/query/use-automation-detail.ts)
+// so the two hooks share one cache entry per automation instead of issuing
+// duplicate requests with different keys.
+const RUNS_LIMIT = 20;
+const RUNS_OFFSET = 0;
 
 export interface UseRoadmapPhasesResult {
   phases: Phase[];
@@ -34,15 +44,35 @@ export function useRoadmapPhases(): UseRoadmapPhasesResult {
 
   const runsQueries = useQueries({
     queries: automations.map((automation) => ({
+      // Key shape (incl. {limit, offset}) and queryFn mirror useAutomationRuns
+      // exactly so the roadmap shares its cache entry with the detail page.
       queryKey: [
         ...AUTOMATION_RUNS_QUERY_KEY,
         automation.id,
+        { limit: RUNS_LIMIT, offset: RUNS_OFFSET },
         active.backend.id,
         active.orgId,
       ] as const,
-      queryFn: () => AutomationService.getAutomationRuns(automation.id),
+      queryFn: () =>
+        AutomationService.getAutomationRuns(
+          automation.id,
+          RUNS_LIMIT,
+          RUNS_OFFSET,
+        ),
       staleTime: 60 * 1000,
       enabled: Boolean(automation.id),
+      // Poll while any run is non-terminal so status transitions
+      // (RUNNING -> COMPLETED/FAILED) show up without a manual refresh.
+      refetchInterval: (query: { state: { data: unknown } }) => {
+        const data = query.state.data as AutomationRunsResponse | undefined;
+        if (!data) return false;
+        const hasInFlightRun = data.runs.some(
+          (run) =>
+            run.status === AutomationRunStatus.PENDING ||
+            run.status === AutomationRunStatus.RUNNING,
+        );
+        return hasInFlightRun ? 3000 : false;
+      },
     })),
   });
 

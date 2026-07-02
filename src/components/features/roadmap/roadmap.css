@@ -1,7 +1,11 @@
 :root {
   --roadmap-ink: #e8ecf2;
   --roadmap-muted: #8b93a2;
-  --roadmap-faint: #565e6d;
+  /* Muted blue-gray, lightened from #565e6d for WCAG AA text contrast
+     (>=4.5:1) against the carbon card/page backgrounds; see roadmap-label,
+     roadmap-meta, roadmap-detail-label, roadmap-empty, roadmap-render-kind/
+     -meta, and roadmap-footer, which all render 10-12px text in this color. */
+  --roadmap-faint: #7a86a8;
   --roadmap-blue1: #7cb2ff;
   --roadmap-blue2: #3b82f6;
   --roadmap-blue3: #1d4ed8;

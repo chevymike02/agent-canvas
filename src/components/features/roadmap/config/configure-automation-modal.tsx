@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
+import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { useCreateAutomationFromPreset } from "#/hooks/query/use-automations";
 import type {
   CreateAutomationTrigger,
@@ -91,6 +92,11 @@ function buildTrigger(form: FormState): CreateAutomationTrigger {
   };
 }
 
+// Elements a focus trap should treat as reachable; mirrors the common
+// tabbable-selector pattern (anchors/buttons/form controls/explicit tabindex).
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const TRIGGER_ITEMS: { key: TriggerKind; labelKey: I18nKey }[] = [
   { key: "github", labelKey: I18nKey.AUTOMATIONS$CONFIGURE_TRIGGER_GITHUB },
   { key: "cron", labelKey: I18nKey.AUTOMATIONS$CONFIGURE_TRIGGER_CRON },
@@ -106,6 +112,9 @@ export function ConfigureAutomationModal({
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [nameError, setNameError] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -113,6 +122,61 @@ export function ConfigureAutomationModal({
       setNameError(null);
       setPromptError(null);
     }
+  }, [isOpen]);
+
+  // Move focus into the modal on open (first focusable field, falling back
+  // to the panel itself), and restore focus to whatever triggered the modal
+  // (the roadmap "Configure" button) once it closes.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    const panel = panelRef.current;
+    const firstFocusable =
+      panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    (firstFocusable ?? panel)?.focus();
+
+    return () => {
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen]);
+
+  // Trap Tab/Shift+Tab within the panel so keyboard focus can't wander into
+  // the roadmap page behind the modal while it's open.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      );
+      if (focusable.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -166,16 +230,17 @@ export function ConfigureAutomationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Reuses the app's shared dialog primitive (used by ~20 other modals)
+    // instead of a hand-rolled overlay: it already portals to <body>, sets
+    // role="dialog"/aria-modal="true", and closes on a *working* Escape
+    // listener (attached at the window, unlike the dead onKeyDown this
+    // replaced) and on backdrop click.
+    <ModalBackdrop onClose={onClose} ariaLabelledBy={titleId}>
       <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
-        }}
-        role="presentation"
-      />
-      <div className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-y-auto rounded-xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-6">
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col overflow-y-auto rounded-xl border border-[var(--oh-border)] bg-[var(--oh-surface)] p-6 outline-none transition-[opacity,transform] duration-150 ease-out starting:opacity-0 starting:scale-95 motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[rgba(124,178,255,0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--oh-surface)]"
+      >
         <button
           type="button"
           onClick={onClose}
@@ -185,7 +250,7 @@ export function ConfigureAutomationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className={modalTitleLgMediumClassName}>
+        <h2 id={titleId} className={modalTitleLgMediumClassName}>
           {t(I18nKey.AUTOMATIONS$CONFIGURE_TITLE)}
         </h2>
 
@@ -379,6 +444,6 @@ export function ConfigureAutomationModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

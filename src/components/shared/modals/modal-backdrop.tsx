@@ -9,6 +9,13 @@ interface ModalBackdropProps {
   /** When false, clicking the backdrop does not close the modal. Defaults to true. */
   closeOnBackdropClick?: boolean;
   "aria-label"?: string;
+  /**
+   * Id of an element (e.g. the modal's own <h2> title) that names this
+   * dialog for assistive tech. Takes precedence over `aria-label` per the
+   * ARIA spec when both are supplied. Optional — existing call sites that
+   * only pass `aria-label` are unaffected.
+   */
+  ariaLabelledBy?: string;
 }
 
 export function ModalBackdrop({
@@ -17,6 +24,7 @@ export function ModalBackdrop({
   closeOnEscape = true,
   closeOnBackdropClick = true,
   "aria-label": ariaLabel,
+  ariaLabelledBy,
 }: ModalBackdropProps) {
   React.useEffect(() => {
     if (!closeOnEscape) return undefined;
@@ -44,7 +52,8 @@ export function ModalBackdrop({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={ariaLabel}
+      aria-label={ariaLabelledBy ? undefined : ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       className="fixed inset-0 flex items-center justify-center z-60"
     >
       <div
