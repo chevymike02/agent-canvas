@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import AutomationService from "#/api/automation-service/automation-service.api";
+import AutomationService, {
+  type CreatePromptAutomationRequest,
+} from "#/api/automation-service/automation-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import type { Automation } from "#/types/automation";
 import {
@@ -51,6 +53,17 @@ export function useUpdateAutomation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
+    },
+  });
+}
+
+export function useCreateAutomationFromPreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: CreatePromptAutomationRequest) =>
+      AutomationService.createAutomationFromPreset(request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
     },
   });
 }

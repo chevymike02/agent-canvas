@@ -19,6 +19,36 @@ export interface AutomationHealthResponse {
   message?: string;
 }
 
+/** A repo to auto-clone into the automation workspace on trigger. */
+export interface CreatePromptAutomationRepo {
+  /** `owner/repo` short form or a full clone URL. */
+  url: string;
+  /** Required for the short `owner/repo` form; auto-detected for full URLs. */
+  provider?: "github" | "gitlab" | "bitbucket";
+  /** Optional git ref (branch/tag/sha). */
+  ref?: string;
+}
+
+/**
+ * Trigger shapes accepted by the create endpoints. Kept as a discriminated
+ * union (unlike the looser `AutomationTrigger` read type) so the create UI
+ * builds a valid body per trigger kind.
+ */
+export type CreateAutomationTrigger =
+  | { type: "event"; source: string; on: string | string[]; filter?: string }
+  | { type: "cron"; schedule: string; timezone?: string }
+  | { type: "manual" };
+
+/** Body for `POST /api/automation/v1/preset/prompt` (no tarball required). */
+export interface CreatePromptAutomationRequest {
+  name: string;
+  prompt: string;
+  trigger: CreateAutomationTrigger;
+  repos?: CreatePromptAutomationRepo[];
+  model?: string;
+  timeout?: number;
+}
+
 // Local automation calls go to the automation sidecar that
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
 // Both backends use the same session API key and the same `X-Session-API-Key`
@@ -80,6 +110,25 @@ class AutomationService {
     offset = 0,
   ): Promise<AutomationsResponse> {
     return AutomationService.listAutomations({ limit, offset });
+  }
+
+  static async createAutomationFromPreset(
+    request: CreatePromptAutomationRequest,
+  ): Promise<Automation> {
+    const active = getActiveBackend().backend;
+    const path = `${AUTOMATION_BASE_PATH}/v1/preset/prompt`;
+
+    if (active.kind === "cloud") {
+      return callCloudProxy<Automation>({
+        backend: active,
+        method: "POST",
+        path,
+        body: request as unknown as Record<string, unknown>,
+      });
+    }
+
+    const { data } = await localAutomationAxios.post<Automation>(path, request);
+    return data;
   }
 
   static async getAutomation(id: string): Promise<Automation> {
