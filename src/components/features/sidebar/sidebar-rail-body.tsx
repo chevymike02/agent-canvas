@@ -219,6 +219,14 @@ export function SidebarRailBody({
           collapsed={collapsed}
           icon={<Map width={ICON_SIZE} height={ICON_SIZE} />}
         />
+        <SidebarNavLink
+          to="/control-room"
+          label={t(I18nKey.SIDEBAR$CONTROL_ROOM)}
+          testId="sidebar-control-room-link"
+          disabled={linkDisabled}
+          collapsed={collapsed}
+          icon={<Server width={ICON_SIZE} height={ICON_SIZE} />}
+        />
       </nav>
 
       <SidebarConversationList collapsed={collapsed} />

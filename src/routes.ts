@@ -32,6 +32,7 @@ export default [
     route("automations", "routes/automations-list.tsx"),
     route("automations/:automationId", "routes/automation-detail.tsx"),
     route("roadmap", "routes/roadmap-tab.tsx"),
+    route("control-room", "routes/control-room-tab.tsx"),
   ]),
   route(
     "shared/conversations/:conversationId",
